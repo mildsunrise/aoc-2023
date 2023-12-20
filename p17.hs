@@ -28,25 +28,23 @@ mapToArray lines = array ((0, 0), bound) entries
     bound = (length (head lines) - 1, length lines - 1)
     entries = concat $ zipWith (\y -> zip (map (,y) [0..])) [0..] lines
 
-dijkstra isEnd neighbors dequeue getDistance setDistance = run
+dijkstra isEnd neighbors dequeue getDist setDist = run
   where
   run = dequeue >>= step
   step (d, node)
     | isEnd node = return d
     | otherwise  = process d node >> run
-  process d node = forM_ (neighbors node) (adjust . first (d +))
+  process d node =
+    forM_ (neighbors node) (adjust . first (d +))
   adjust (d', node) = do
-    d <- getDistance node
-    when (maybe True (d' <) d) $ setDistance node d d'
+    d <- getDist node
+    when (maybe True (d' <) d) $ setDist node d d'
 
 pzip f (a, b) (c, d) = (f a c, f b d)
 pmap f (a, b) = (f a, f b)
 
 
 -- PARTS
-
-headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-newPos (h, a) = pzip (+) $ headings !! h
 
 minHeatLoss (da, db) costs = runST $ do
   let
@@ -55,6 +53,9 @@ minHeatLoss (da, db) costs = runST $ do
     roots = withCosts bs $ map (,0) [0..3]
     isEnd = (== be) . fst
     -- TODO: use da
+
+    headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+    newPos (h, a) = pzip (+) $ headings !! h
 
     withCosts pos =
       map (\node -> (costs ! fst node, node)) .
@@ -70,12 +71,12 @@ minHeatLoss (da, db) costs = runST $ do
   queue <- newSTRef $ Set.fromList roots
   let
     dequeue = alterSTRef queue Set.deleteFindMin
-    getDistance = readArray dists
-    setDistance node d d' = do
+    getDist = readArray dists
+    setDist node d d' = do
       writeArray dists node (Just d')
       let f = maybe id (Set.delete . (, node)) d
       modifySTRef queue (f . Set.insert (d', node))
-  dijkstra isEnd neighbors dequeue getDistance setDistance
+  dijkstra isEnd neighbors dequeue getDist setDist
 
 part k =
   minHeatLoss k .
