@@ -1,8 +1,8 @@
-{-# LANGUAGE TupleSections, TypeApplications #-}
+{-# LANGUAGE TupleSections, TypeApplications, ScopedTypeVariables #-}
 
 import Data.Foldable (forM_)
 import Control.Arrow (Arrow(first))
-import Control.Monad (when)
+import Control.Monad (when, guard)
 import Control.Monad.ST.Strict (ST, runST)
 import Data.Array (array, bounds, (!), Ix (inRange))
 import Data.Array.ST (STArray, newArray, readArray, writeArray)
@@ -28,17 +28,20 @@ mapToArray lines = array ((0, 0), bound) entries
     bound = (length (head lines) - 1, length lines - 1)
     entries = concat $ zipWith (\y -> zip (map (,y) [0..])) [0..] lines
 
-dijkstra isEnd neighbors dequeue getDist setDist = run
+dijkstra
+  (isEnd :: node -> Bool)
+  (neighbors :: node -> [(d, node)])
+  (dequeue :: m (d, node))
+  (alterDistance :: node -> (Maybe d -> Maybe d) -> m ())
+  = run
   where
   run = dequeue >>= step
   step (d, node)
     | isEnd node = return d
     | otherwise  = process d node >> run
-  process d node =
-    forM_ (neighbors node) (adjust . first (d +))
-  adjust (d', node) = do
-    d <- getDist node
-    when (maybe True (d' <) d) $ setDist node d d'
+  process d node = forM_ (neighbors node) $ \(c, neigh) ->
+    alterDistance neigh (newDistance (d + c))
+  newDistance d' = (d' <$) . guard . maybe True (d' <)
 
 pzip f (a, b) (c, d) = (f a c, f b d)
 pmap f (a, b) = (f a, f b)
@@ -71,12 +74,13 @@ minHeatLoss (da, db) costs = runST $ do
   queue <- newSTRef $ Set.fromList roots
   let
     dequeue = alterSTRef queue Set.deleteFindMin
-    getDist = readArray dists
-    setDist node d d' = do
-      writeArray dists node (Just d')
-      let f = maybe id (Set.delete . (, node)) d
-      modifySTRef queue (f . Set.insert (d', node))
-  dijkstra isEnd neighbors dequeue getDist setDist
+    alterDistance node f = do
+      d <- readArray dists node
+      forM_ (f d) $ \d' -> do
+        writeArray dists node (Just d')
+        let f = maybe id (Set.delete . (, node)) d
+        modifySTRef queue (Set.insert (d', node) . f)
+  dijkstra isEnd neighbors dequeue alterDistance
 
 part k =
   minHeatLoss k .
