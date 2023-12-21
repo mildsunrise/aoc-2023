@@ -8,6 +8,7 @@ import Data.Array (array, bounds, (!), Ix (inRange))
 import Data.Array.ST (STArray, newArray, readArray, writeArray)
 import Data.STRef (newSTRef, readSTRef, writeSTRef, modifySTRef)
 import qualified Data.Set as Set
+import Data.Maybe (fromJust)
 
 main = getContents >>= (print . parts . lines)
 
@@ -45,17 +46,20 @@ dijkstra
     alterDistance neigh (newDistance (d + c))
   newDistance d' = (d' <$) . guard . maybe True (d' <)
 
-runArrayDijkstra bounds roots isEnd neighbors = runST $ do
+runArrayDijkstra bounds roots isEnd neighbors heuristic = runST $ do
   distances <- newSTArray bounds Nothing
   queue <- newSTRef Set.empty
   let
-    dequeue = alterSTRef queue Set.deleteFindMin
+    dequeue = do
+      (_, node) <- alterSTRef queue Set.deleteFindMin
+      (, node) . fromJust <$> readArray distances node
     alterDistance node f = do
       d <- readArray distances node
       forM_ (f d) $ \d' -> do
         writeArray distances node (Just d')
-        let f = maybe id (Set.delete . (, node)) d
-        modifySTRef queue (Set.insert (d', node) . f)
+        let h = heuristic node
+        let f = maybe id (Set.delete . (, node) . (+ h)) d
+        modifySTRef queue (Set.insert (d' + h, node) . f)
   dijkstra roots isEnd neighbors dequeue alterDistance
 
 pzip f (a, b) (c, d) = (f a c, f b d)
@@ -65,7 +69,7 @@ pmap f (a, b) = (f a, f b)
 -- PARTS
 
 minHeatLoss (da, db) costs =
-  runArrayDijkstra nodeBounds roots isEnd neighbors
+  runArrayDijkstra nodeBounds roots isEnd neighbors heuristic
   where
   (bs, be) = bounds costs
   nodeBounds = ((bs, (0, 0)), (be, (3, db)))
@@ -75,6 +79,7 @@ minHeatLoss (da, db) costs =
 
   headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
   newPos (h, a) = pzip (+) $ headings !! h
+  heuristic = uncurry (+) . pzip (-) be . fst
 
   withCosts pos =
     map (\node -> (costs ! fst node, node)) .
