@@ -67,24 +67,24 @@ pmap f (a, b) = (f a, f b)
 minHeatLoss (da, db) costs =
   runArrayDijkstra nodeBounds roots isEnd neighbors
   where
-    (bs, be) = bounds costs
-    nodeBounds = ((bs, (0, 0)), (be, (3, db)))
-    roots = withCosts bs $ map (,0) [0..3]
-    isEnd = (== be) . fst
-    -- TODO: use da
+  (bs, be) = bounds costs
+  nodeBounds = ((bs, (0, 0)), (be, (3, db)))
+  roots = withCosts bs $ map (,0) [0..3]
+  isEnd = (== be) . fst
+  -- TODO: use da
 
-    headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-    newPos (h, a) = pzip (+) $ headings !! h
+  headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+  newPos (h, a) = pzip (+) $ headings !! h
 
-    withCosts pos =
-      map (\node -> (costs ! fst node, node)) .
-      filter (inRange nodeBounds) .
-      map (\ha -> (newPos ha pos, ha))
+  withCosts pos =
+    map (\node -> (costs ! fst node, node)) .
+    filter (inRange nodeBounds) .
+    map (\ha -> (newPos ha pos, ha))
 
-    neighbors (pos, (h, a)) =
-      withCosts pos $
-      ((h, a+1) :) $
-      map ((,0) . (`mod` 4) . (h +)) [-1, 1]
+  neighbors (pos, (h, a)) =
+    withCosts pos $
+    ((h, a+1) :) $
+    map ((,0) . (`mod` 4) . (h +)) [-1, 1]
 
 part k =
   minHeatLoss k .
