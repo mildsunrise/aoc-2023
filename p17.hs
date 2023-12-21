@@ -6,7 +6,7 @@ import Control.Monad (when, guard)
 import Control.Monad.ST.Strict (ST, runST)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (runMaybeT, MaybeT (MaybeT))
-import Data.Array (array, bounds, (!), Ix (inRange), Array)
+import Data.Array (array, bounds, (!), Ix (inRange, range), Array, listArray)
 import Data.Array.ST (STArray, newArray, readArray, writeArray, freeze)
 import Data.STRef (newSTRef, readSTRef, writeSTRef, modifySTRef)
 import qualified Data.Set as Set
@@ -92,14 +92,25 @@ minHeatLoss (da, db) costs =
   nodeBounds = ((bs, (0, 0)), (be, (3, db)))
   roots = withCosts bs $ map (,0) [0..3]
   isEnd = (== be) . fst
-  -- TODO: use da
 
   headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+  newPos (h, 0) = pzip (+) $ pmap (* da) $ headings !! h
   newPos (h, a) = pzip (+) $ headings !! h
   heuristic = (firstPass !) . fst
 
+  turnCosts = (`map` headings) $ \h -> let
+    offset = pmap (\f -> pmap ((* da) . f 0) h) (max, min)
+    trimBounds = pzip (pzip (+)) (bs, be) offset
+    cost pos = sum $ (`map` [0..da-1]) $ \n ->
+      (costs !) $ pzip (-) pos $ pmap (* n) h
+    in listArray trimBounds $ map cost $ range trimBounds
+
+  cost (pos, (h, a))
+    | a == 0 = (turnCosts !! h) ! pos
+    | otherwise = costs ! pos
+
   withCosts pos =
-    map (\node -> (costs ! fst node, node)) .
+    map (\node -> (cost node, node)) .
     filter (inRange nodeBounds) .
     map (\ha -> (newPos ha pos, ha))
 
