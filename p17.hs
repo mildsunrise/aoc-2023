@@ -29,12 +29,14 @@ mapToArray lines = array ((0, 0), bound) entries
     entries = concat $ zipWith (\y -> zip (map (,y) [0..])) [0..] lines
 
 dijkstra
+  (roots :: [(d, node)])
   (isEnd :: node -> Bool)
   (neighbors :: node -> [(d, node)])
   (dequeue :: m (d, node))
   (alterDistance :: node -> (Maybe d -> Maybe d) -> m ())
-  = run
+  = forM_ roots addRoot >> run
   where
+  addRoot (d, node) = alterDistance node (\_ -> Just d)
   run = dequeue >>= step
   step (d, node)
     | isEnd node = return d
@@ -43,14 +45,28 @@ dijkstra
     alterDistance neigh (newDistance (d + c))
   newDistance d' = (d' <$) . guard . maybe True (d' <)
 
+runArrayDijkstra bounds roots isEnd neighbors = runST $ do
+  distances <- newSTArray bounds Nothing
+  queue <- newSTRef Set.empty
+  let
+    dequeue = alterSTRef queue Set.deleteFindMin
+    alterDistance node f = do
+      d <- readArray distances node
+      forM_ (f d) $ \d' -> do
+        writeArray distances node (Just d')
+        let f = maybe id (Set.delete . (, node)) d
+        modifySTRef queue (Set.insert (d', node) . f)
+  dijkstra roots isEnd neighbors dequeue alterDistance
+
 pzip f (a, b) (c, d) = (f a c, f b d)
 pmap f (a, b) = (f a, f b)
 
 
 -- PARTS
 
-minHeatLoss (da, db) costs = runST $ do
-  let
+minHeatLoss (da, db) costs =
+  runArrayDijkstra nodeBounds roots isEnd neighbors
+  where
     (bs, be) = bounds costs
     nodeBounds = ((bs, (0, 0)), (be, (3, db)))
     roots = withCosts bs $ map (,0) [0..3]
@@ -69,18 +85,6 @@ minHeatLoss (da, db) costs = runST $ do
       withCosts pos $
       ((h, a+1) :) $
       map ((,0) . (`mod` 4) . (h +)) [-1, 1]
-
-  dists <- newSTArray nodeBounds Nothing
-  queue <- newSTRef $ Set.fromList roots
-  let
-    dequeue = alterSTRef queue Set.deleteFindMin
-    alterDistance node f = do
-      d <- readArray dists node
-      forM_ (f d) $ \d' -> do
-        writeArray dists node (Just d')
-        let f = maybe id (Set.delete . (, node)) d
-        modifySTRef queue (Set.insert (d', node) . f)
-  dijkstra isEnd neighbors dequeue alterDistance
 
 part k =
   minHeatLoss k .
