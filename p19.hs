@@ -1,22 +1,12 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
-import Data.List (intercalate, transpose, sort, group, find)
+{-# LANGUAGE ViewPatterns, TypeApplications, TupleSections #-}
+
 import Data.List.Split (splitOn)
-import Data.Maybe (mapMaybe, fromJust, fromMaybe)
-import qualified Data.Map as Map
-import Data.Foldable (foldl', forM_, foldlM)
-import Data.Array.Unboxed (UArray, array, bounds, (!), Array, IArray)
-import Data.Array.ST (thaw, runSTUArray, readArray, writeArray, getBounds, runSTArray, Ix, STArray, STUArray, MArray)
-import Control.Monad.ST.Strict (ST)
-import Data.Array.Base (thawSTUArray)
-import Data.Tuple (swap)
-import Data.Bits (Bits(setBit))
-import Data.Word (Word8)
-import Control.Monad (replicateM_)
+import Control.Monad (guard, (<=<))
+import Control.Monad.Extra (findM)
+import Control.Monad.State (StateT(StateT), execStateT)
 import Control.Arrow (Arrow(second, first))
-import Data.Bifunctor (Bifunctor(bimap))
+import qualified Data.Map as Map
 
 main = getContents >>= (print . parts . lines)
 
@@ -57,44 +47,55 @@ parseRating (k : '=' : (read @Int -> v)) = (k, v)
 
 -- PART 1
 
-runWorkflows workflows part = run "in"
+runOp '<' = (<)
+runOp '>' = (>)
+
+runWorkflows runCondition workflows = run "in"
   where
   run name =
-    either id run $
+    either return run <=<
     runWorkflow $
     workflows Map.! name
 
   runWorkflow (rules, fallback) =
-    maybe fallback snd $
-    find (runCondition . fst) rules
-
-  runCondition (c, op, x) =
-    runOp op (part Map.! c) x
-
-  runOp '<' = (<)
-  runOp '>' = (>)
+    maybe fallback snd <$>
+    findM (runCondition . fst) rules
 
 part1 =
   sum .
   map (sum . Map.elems) .
-  uncurry (filter . runWorkflows) .
+  uncurry (filter . runWorkflows impl) .
   parseInput
 
+  where
+  impl (c, op, x) part =
+    runOp op (part Map.! c) x
 
 -- PART 2
 
 base = Map.fromList $ map (, (1, 4000)) "xmas"
 
-rangeCombinations (a, b) = max 0 $ b - a + 1
+runOpRange op (a, b) x =
+  filter (uncurry (<=) . snd) $
+  zip [True, False] (f op)
+  where
+  f '<' = [(a, min (x-1) b), (max x a, b)]
+  f '>' = [(max (x+1) a, b), (a, min x b)]
 
 partCombinations =
   product .
-  map (toInteger . rangeCombinations) .
+  map (\(a, b) -> b - a + 1) .
   Map.elems
 
 part2 =
   sum .
   map partCombinations .
-  evalWorkflows base .
+  (`execStateT` base) .
+  (guard <=< runWorkflows impl) .
   fst .
   parseInput
+
+  where
+  impl (c, op, x) = StateT $ \part ->
+    map (second $ \r -> Map.insert c r part) $
+    runOpRange op (part Map.! c) x
