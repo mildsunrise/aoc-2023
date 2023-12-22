@@ -24,7 +24,10 @@ mapToArray lines = array ((0, 0), bound) entries
     entries = concat $ zipWith (\y -> zip (map (,y) [0..])) [0..] lines
 
 pzip f (a, b) (c, d) = (f a c, f b d)
-pmap f (a, b) = (f a, f b)
+
+onlyOnce arr x m = do
+  marked <- readArray arr x
+  unless marked (writeArray arr x True >> m)
 
 
 -- GEOMETRY
@@ -48,8 +51,9 @@ rayPositions (xs, ys) (xe, ye) =
 
 -- PARTS
 
-energizedTiles tiles = map dfs roots
+part input = map dfs roots
   where
+  tiles = mapToArray input
   (bs, be) = bounds tiles
   nodeBounds = ((bs, 0), (be, 3))
   roots = rayPositions bs be
@@ -60,20 +64,16 @@ energizedTiles tiles = map dfs roots
     map (\h -> (newPos pos h, h)) $
     outHeadings (tiles ! pos) h
 
-  dfs start = runST $ do
+  dfs root = runST $ do
     visited <- newSTArray nodeBounds False
     energized <- newSTArray (bs, be) False
     count <- newSTRef 0
     let
-      onlyOnce arr x m = do
-        marked <- readArray arr x
-        unless marked (writeArray arr x True >> m)
       visit node = onlyOnce visited node $ do
         onlyOnce energized (fst node) $
           modifySTRef' count (+ 1)
         forM_ (neighbors node) visit
-    visit start
+    visit root
     readSTRef count
 
-part = energizedTiles . mapToArray
 (part1, part2) = (head . part, maximum . part)
