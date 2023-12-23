@@ -22,18 +22,19 @@ mapToArray lines = array ((0, 0), bound) entries
     entries = concat $ zipWith (\y -> zip (map (,y) [0..])) [0..] lines
 
 pzip f (a, b) (c, d) = (f a c, f b d)
-pmap f (a, b) = (f a, f b)
 
 iterateM f x = (x :) <$> (f x >>= iterateM f)
+
+markArray arr k = do
+  new <- not <$> readArray arr k
+  when new $ writeArray arr k True
+  return new
 
 runArrayBFS bounds roots neighbors = runST $ do
   visited <- newSTArray bounds False
   let
     round = filterM visit . concatMap neighbors
-    visit node = do
-      new <- not <$> readArray visited node
-      when new $ writeArray visited node True
-      return new
+    visit = markArray visited
   mapM_ visit roots
   iterateM round roots
 
@@ -42,14 +43,18 @@ runArrayBFS bounds roots neighbors = runST $ do
 
 headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
 
-start =
+findStart =
   fst .
   head .
   filter ((== 'S') . snd) .
   assocs
 
-reachableGardens tiles =
-  runArrayBFS (bounds tiles) [start tiles] neighbors
+reachableGardens tiles start =
+  concat $
+  scanl1 (zipWith (+)) $
+  chunksOf 2 $
+  map length $
+  runArrayBFS (bounds tiles) [start] neighbors
   where
   neighbors node =
     filter ((/= '#') . (tiles !)) $
@@ -57,15 +62,46 @@ reachableGardens tiles =
     map (pzip (+) node) headings
 
 part1 =
-  sum .
-  map head .
-  chunksOf 2 .
-  take 65 .
-  map length .
-  reachableGardens .
+  (!! 64) .
+  (\t -> reachableGardens t $ findStart t) .
   mapToArray
 
 
 -- PART 2
 
-part2 = const "TODO"
+bigReachableGardens dist tiles = let
+  e = fst $ snd $ bounds tiles
+  s = e + 1
+  hs = s `div` 2
+  k = (dist - 3) `div` s - 2
+
+  axis =
+    map (count (hs + 1))
+    [(0,hs), (e,hs), (hs,0), (hs,e)]
+
+  diagonals =
+    map (zipWith (*) [k+1..] . count (s + 1))
+    [(0,0), (0,e), (e,0), (e,e)]
+
+  count startDist =
+    reverse .
+    take (dist' `div` s + 1) .
+    map head .
+    chunksOf s .
+    drop (dist' `mod` s) .
+    reachableGardens tiles
+    where
+    dist' = dist - s * k - startDist
+
+  (pe : po : _) =
+    drop (2 * s + dist `mod` 2) $
+    reachableGardens tiles (0, 0)
+
+  (hk, ek) = (k `div` 2, k - hk)
+  fullCopies = pe * (hk + ek*ek) + po * (k + hk*hk)
+  partialCopies = sum $ concat $ axis ++ diagonals
+  in pe + 4 * fullCopies + partialCopies
+
+part2 =
+  bigReachableGardens 26501365 .
+  mapToArray
