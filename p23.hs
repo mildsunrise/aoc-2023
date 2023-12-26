@@ -19,6 +19,21 @@ mapToArray lines = array ((0, 0), bound) entries
 
 pzip f (a, b) (c, d) = (f a c, f b d)
 
+preprocessGraph (neighbors, (start, end)) =
+  ((visit Map.empty start Map.!), (start, end))
+  where
+  visit graph node
+    | Map.member node graph = graph
+    | otherwise = foldl visit graph' (map fst neighs)
+    where
+    neighs = map (followPath node 1) (neighbors node)
+    graph' = Map.insert node neighs graph
+
+  followPath parent l node =
+    case delete parent (neighbors node) of
+      [next] -> followPath node (l + 1) next
+      _      -> (node, l)
+
 
 -- PARTS
 
@@ -39,18 +54,19 @@ buildGraph slippery tiles = (neighbors, ends)
   headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
   trails = zip ">v<^" headings
 
-possiblePaths (graph, (start, end)) = dfs Map.empty start
+possiblePaths (graph, (start, end)) = dfs Map.empty (start, 0)
   where
-  dfs path node
-    | node == end          = [ Map.size path ]
+  dfs path (node, l)
+    | node == end          = [ sum $ Map.elems path' ]
     | Map.member node path = []
     | otherwise            = graph node >>= dfs path'
     where
-    path' = Map.insert node () path
+    path' = Map.insert node l path
 
 part slippery =
   maximum .
   possiblePaths .
+  preprocessGraph .
   buildGraph slippery .
   mapToArray
 
