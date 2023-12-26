@@ -22,7 +22,7 @@ pzip f (a, b) (c, d) = (f a c, f b d)
 
 -- PARTS
 
-buildGraph tiles = (neighbors, ends)
+buildGraph slippery tiles = (neighbors, ends)
   where
   ends = pzip (pzip (+)) ((1,0), (-1,0)) (bounds tiles)
 
@@ -33,7 +33,7 @@ buildGraph tiles = (neighbors, ends)
     nodeHeadings (tiles ! node)
 
   nodeHeadings c
-    | c == '.'  = headings
+    | c == '.' || not slippery = headings
     | otherwise = [ fromJust $ lookup c trails ]
 
   headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
@@ -48,10 +48,10 @@ possiblePaths (graph, (start, end)) = dfs Map.empty start
     where
     path' = Map.insert node () path
 
-part1 =
+part slippery =
   maximum .
   possiblePaths .
-  buildGraph .
+  buildGraph slippery .
   mapToArray
 
-part2 = const "TODO"
+(part1, part2) = (part True, part False)
