@@ -3,7 +3,7 @@
 
 import Data.Bifunctor (Bifunctor(first))
 import Data.Function (on)
-import Data.List (unfoldr, partition)
+import Data.List (unfoldr, partition, findIndex)
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
@@ -83,15 +83,30 @@ runPulses _ state = ([], state)
 
 -- PART 1
 
-buttonPulse = ("broadcaster", (undefined, False))
-pushButton = runPulses (Seq.singleton buttonPulse)
+sendPulse = runPulses . Seq.singleton
+pulseStream pulse = unfoldr (Just . sendPulse pulse)
 
 part1 =
   uncurry (on (*) length) .
   partition (snd . snd) .
   concat .
   take 1000 .
-  unfoldr (Just . pushButton) .
+  pulseStream ("broadcaster", (undefined, False)) .
   initWorld
 
-part2 = const "TODO"
+
+-- PART 2
+
+subgraphCycle world root = n + 1
+  where
+  [accum] = invertGraph (Map.toList world) Map.! "rx"
+  pulse = (root, ("broadcaster", False))
+  event = any (snd . snd) . filter ((== accum) . fst)
+  Just n = findIndex event (pulseStream pulse world)
+
+firstOutLow world =
+  product $
+  map (subgraphCycle world) $
+  snd (world Map.! "broadcaster")
+
+part2 = firstOutLow . initWorld
