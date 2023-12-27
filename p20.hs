@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-{-# LANGUAGE TupleSections, ViewPatterns, BangPatterns #-}
+{-# LANGUAGE TupleSections, ViewPatterns #-}
 
+import Data.Bifunctor (Bifunctor(first))
+import Data.Function (on)
+import Data.List (unfoldr, partition)
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
@@ -47,11 +50,7 @@ handlePulse (Conjunction s) (from, x) = (Conjunction s', Just x')
 -- WORLD IMPLEMENTATION
 
 type Pulse = (String, (String, Bool))
-type WorldNodes = Map.Map String (NodeState, [String])
-type WorldState = ((Int, Int), WorldNodes, Seq Pulse)
-
-updateStats (_, (_, False)) (!a, !b) = (a + 1, b)
-updateStats (_, (_, True )) (!a, !b) = (a, b + 1)
+type WorldState = Map.Map String (NodeState, [String])
 
 invertGraph =
   Map.fromListWith (++) .
@@ -61,13 +60,11 @@ initNode ins (node, (kind, dests)) = (node, (state, dests))
   where state = initState (ins Map.! node) kind
 
 initWorld :: [String] -> WorldState
-initWorld =
-  ((0, 0),, Seq.empty) .
-  Map.fromList .
-  (\ns -> map (initNode $ invertGraph ns) ns) .
-  map parseLine
+initWorld (map parseLine -> nodes) =
+  Map.fromList $
+  map (initNode $ invertGraph nodes) nodes
 
-worldTick :: Pulse -> WorldNodes -> ([Pulse], WorldNodes)
+worldTick :: Pulse -> WorldState -> ([Pulse], WorldState)
 worldTick (node, x) = Map.alterF helper node
   where
   helper Nothing = ([], Nothing)
@@ -76,27 +73,25 @@ worldTick (node, x) = Map.alterF helper node
     (s', x') = handlePulse s x
     out = maybe [] (\x -> map (, (node, x)) dests) x'
 
-runPulses :: WorldState -> WorldState
-runPulses (stats, states, pulse :<| queue) = let
-  !stats' = updateStats pulse stats
+runPulses :: Seq Pulse -> WorldState -> ([Pulse], WorldState)
+runPulses (pulse :<| queue) states = let
   (out, states') = worldTick pulse states
   queue' = queue >< Seq.fromList out
-  in runPulses (stats', states', queue')
-runPulses state = state
+  in first (pulse :) $ runPulses queue' states'
+runPulses _ state = ([], state)
 
 
 -- PART 1
 
 buttonPulse = ("broadcaster", (undefined, False))
-
-buttonPush (stats, states, queue) =
-  runPulses (stats, states, buttonPulse :<| queue)
+pushButton = runPulses (Seq.singleton buttonPulse)
 
 part1 =
-  uncurry (*) .
-  (\(s, _, _) -> s) .
-  (!! 1000) .
-  iterate buttonPush .
+  uncurry (on (*) length) .
+  partition (snd . snd) .
+  concat .
+  take 1000 .
+  unfoldr (Just . pushButton) .
   initWorld
 
 part2 = const "TODO"
