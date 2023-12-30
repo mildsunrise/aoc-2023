@@ -34,10 +34,15 @@ parseLine (
 
 -- PART 1
 
+parseIntoGraph =
+  buildGraph .
+  sortOn (snd . fst) .
+  map parseLine
+
 buildGraph xs = runST $ do
   let
-    xyStat f g = bimap f f $ unzip $ map (fst . g) xs
-    bs = (xyStat minimum fst, xyStat maximum snd)
+    stat f g = bimap f f $ unzip $ map (fst . g) xs
+    bs = (stat minimum fst, stat maximum snd)
     preprocessPiece ((xy1, z1), (xy2, z2)) =
       (range (xy1, xy2), z2 - z1 + 1)
     pieces = zip [1..] $ map preprocessPiece xs
@@ -54,15 +59,10 @@ disintegrablePieces xs =
   ((length xs + 1) -) $
   length $
   nubOrd $
-  map head $
-  filter ((== 1) . length) $
+  filter (null . drop 1) $
   map snd xs
 
-part1 =
-  disintegrablePieces .
-  buildGraph .
-  sortOn (snd . fst) .
-  map parseLine
+part1 = disintegrablePieces . parseIntoGraph
 
 
 -- PART 2
