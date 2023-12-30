@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# LANGUAGE TupleSections, TypeApplications, ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 
-import Control.Monad (forM, forM_)
+import Control.Monad (forM, forM_, when)
 import Control.Monad.ST.Strict (ST, runST)
-import Data.Array (bounds, (!), Ix (inRange, range), accumArray)
-import Data.Array.ST (STArray, newArray, readArray, writeArray)
+import Data.Array (bounds, (!), Ix (inRange, range), accumArray, elems)
+import Data.Array.ST (STArray, newArray, readArray, writeArray, freeze)
 import Data.List.Split (splitOn)
 import Data.List (sortOn)
 import Data.Bifunctor (Bifunctor(bimap))
@@ -32,12 +33,7 @@ parseLine (
   ) = (a, b)
 
 
--- PART 1
-
-parseIntoGraph =
-  buildGraph .
-  sortOn (snd . fst) .
-  map parseLine
+-- PARTS
 
 buildGraph xs = runST $ do
   let
@@ -55,16 +51,30 @@ buildGraph xs = runST $ do
     let prev = filter ((== z) . fst) under
     pure $ (i,) $ nubOrd $ map snd prev
 
-disintegrablePieces xs =
-  ((length xs + 1) -) $
-  length $
-  nubOrd $
-  filter (null . drop 1) $
-  map snd xs
+reverseGraph xs =
+  accumArray (flip (:)) [] (0, length xs) $
+  concatMap (\(i,ys) -> map (,i) ys) xs
 
-part1 = disintegrablePieces . parseIntoGraph
+disintegrateBrick graph i = runST $ do
+  visited <- newSTArray (bounds graph) False
+  let
+    dfs node = do
+      seen <- readArray visited node
+      writeArray visited node True
+      when (not seen && node /= i) $
+        mapM_ dfs (graph ! node)
+  dfs 0
+  length . filter not . elems <$> freeze visited
 
+disintegrateEachBrick xs =
+  map (disintegrateBrick xs) [1..snd (bounds xs)]
 
--- PART 2
+part =
+  disintegrateEachBrick .
+  reverseGraph .
+  buildGraph .
+  sortOn (snd . fst) .
+  map parseLine
 
-part2 = const "TODO"
+part1 = length . filter (== 0) . part
+part2 = sum . part
