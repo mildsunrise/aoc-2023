@@ -2,11 +2,8 @@
 {-# LANGUAGE TupleSections, ViewPatterns, FlexibleContexts #-}
 
 import Control.Applicative ((<|>))
-import Control.Monad (when, filterM)
-import Control.Monad.State (execState, MonadState (state))
 import Data.List.Split (splitOn)
 import Data.List (unfoldr)
-import Data.Maybe (isNothing)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -18,17 +15,13 @@ main = getContents >>= (print . part . lines)
 dup a = (a, a)
 pairs a = zip a (tail a)
 
-spanningTree graph root =
-  execState (bfs [root]) (Map.singleton root Nothing)
+spanningTree graph root = dfs Nothing root Map.empty
   where
-  bfs []    = pure ()
-  bfs nodes = mapM visit nodes >>= bfs . concat
-  visit node =
-    filterM (mark node) $
-    Set.toList (graph Map.! node)
-  mark parent node =
-    state $ (`Map.alterF` node) $ \v ->
-      (isNothing v, v <|> Just (Just parent))
+  dfs parent node =
+    (\(v, m) -> maybe (recurse node m) (const m) v) .
+    Map.alterF (\v -> (v, v <|> Just parent)) node
+  recurse node m =
+    foldl (flip (dfs (Just node))) m (graph Map.! node)
 
 tracePath parents node =
   node : unfoldr (fmap dup . (parents Map.!)) node
