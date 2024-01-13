@@ -71,6 +71,7 @@ part1 =
   impl (c, op, x) part =
     runOp op (part Map.! c) x
 
+
 -- PART 2
 
 base = Map.fromList $ map (, (1, 4000)) "xmas"
