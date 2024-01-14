@@ -4,13 +4,10 @@ import Data.Foldable (forM_)
 import Control.Arrow (Arrow(first))
 import Control.Monad (when, guard)
 import Control.Monad.ST.Strict (ST, runST)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Maybe (runMaybeT, MaybeT (MaybeT))
-import Data.Array (array, bounds, (!), Ix (inRange, range), Array, listArray)
-import Data.Array.ST (STArray, newArray, readArray, writeArray, freeze)
+import Data.Array (array, bounds, (!), Ix (inRange, range), listArray)
+import Data.Array.ST (STArray, newArray, readArray, writeArray)
 import Data.STRef (newSTRef, readSTRef, writeSTRef, modifySTRef)
 import qualified Data.Set as Set
-import Data.Maybe (fromJust)
 
 main = getContents >>= (print . parts . lines)
 
@@ -25,9 +22,6 @@ alterSTRef ref f = do
 
 newSTArray :: (Ix i) => (i, i) -> e -> ST s (STArray s i e)
 newSTArray = newArray
-
-freezeSTArray :: (Ix i) => STArray s i e -> ST s (Array i e)
-freezeSTArray = freeze
 
 mapToArray lines = array ((0, 0), bound) entries
   where
@@ -51,26 +45,18 @@ dijkstra
     alterDistance neigh (newDistance (d + c))
   newDistance d' = (d' <$) . guard . maybe True (d' <)
 
-tryDeleteMin s
-  | Set.null s = (Nothing, s)
-  | otherwise  = first Just $ Set.deleteFindMin s
-
-runArrayDijkstra bounds roots isEnd neighbors heuristic = runST $ do
+runArrayDijkstra bounds roots isEnd neighbors = runST $ do
   distances <- newSTArray bounds Nothing
   queue <- newSTRef Set.empty
   let
-    dequeue = do
-      (d, node) <- MaybeT $ alterSTRef queue tryDeleteMin
-      lift $ (, node) . fromJust <$> readArray distances node
-    alterDistance node f = lift $ do
+    dequeue = alterSTRef queue Set.deleteFindMin
+    alterDistance node f = do
       d <- readArray distances node
       forM_ (f d) $ \d' -> do
         writeArray distances node (Just d')
-        let h = heuristic node
-        let f = maybe id (Set.delete . (, node) . (+ h)) d
-        modifySTRef queue (Set.insert (d' + h, node) . f)
-  d <- runMaybeT $ dijkstra roots isEnd neighbors dequeue alterDistance
-  (d,) <$> freezeSTArray distances
+        let f = maybe id (Set.delete . (, node)) d
+        modifySTRef queue (Set.insert (d', node) . f)
+  dijkstra roots isEnd neighbors dequeue alterDistance
 
 pzip f (a, b) (c, d) = (f a c, f b d)
 pmap f (a, b) = (f a, f b)
@@ -79,15 +65,8 @@ pmap f (a, b) = (f a, f b)
 -- PARTS
 
 minHeatLoss (da, db) costs =
-  fst $ runArrayDijkstra nodeBounds roots isEnd neighbors heuristic
+  runArrayDijkstra nodeBounds roots isEnd neighbors
   where
-  firstPass = fmap fromJust $ snd $ runArrayDijkstra
-    (bs, be) [(0, be)] (const False) preNeighbors (const 0)
-  preNeighbors node =
-    map (\node -> (costs ! node, node)) $
-    filter (inRange (bs, be)) $
-    map (pzip (+) node) headings
-
   (bs, be) = bounds costs
   nodeBounds = ((bs, (0, 0)), (be, (3, db)))
   roots = withCosts bs $ map (,0) [0..3]
@@ -96,7 +75,6 @@ minHeatLoss (da, db) costs =
   headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
   newPos (h, 0) = pzip (+) $ pmap (* da) $ headings !! h
   newPos (h, a) = pzip (+) $ headings !! h
-  heuristic = (firstPass !) . fst
 
   turnCosts = (`map` headings) $ \h -> let
     offset = pmap (\f -> pmap ((* da) . f 0) h) (max, min)
