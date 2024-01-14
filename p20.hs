@@ -24,7 +24,7 @@ parseLine (splitOn " -> " ->
   ) = (name, (kind, dests))
 
 
--- NODE IMPLEMENTATION
+-- PARTS
 
 data NodeState =
   Broadcaster |
@@ -45,9 +45,6 @@ handlePulse (Conjunction s) (from, x) = (Conjunction s', Just x')
   where
   s' = Map.insert from x s
   x' = not $ and $ Map.elems s'
-
-
--- WORLD IMPLEMENTATION
 
 type Pulse = (String, (String, Bool))
 type WorldState = Map.Map String (NodeState, [String])

@@ -48,7 +48,7 @@ parseLine (
   ) = (name, dests)
 
 
--- PART
+-- PART 1
 
 buildGraph xs =
   fmap Set.fromList $

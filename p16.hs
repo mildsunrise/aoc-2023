@@ -30,7 +30,7 @@ onlyOnce arr x m = do
   unless marked (writeArray arr x True >> m)
 
 
--- GEOMETRY
+-- CONSTANTS
 
 headings = [(1, 0), (0, 1), (-1, 0), (0, -1)]
 

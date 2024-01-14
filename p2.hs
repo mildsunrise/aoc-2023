@@ -22,12 +22,15 @@ parseSet = Map.fromList . map parsePart . splitOn ","
 parsePart (words -> [read @Int -> n, color]) = (color, n)
 
 
--- PART 1
+-- CONSTANTS
 
 loaded = Map.fromList
   [ ("red", 12)
   , ("green", 13)
   , ("blue", 14) ]
+
+
+-- PART 1
 
 isSetPossible =
   Map.null .

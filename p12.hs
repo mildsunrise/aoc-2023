@@ -21,7 +21,7 @@ parseLine (words ->
   ) = (bits, runs)
 
 
--- STATE MACHINE
+-- PARTS
 
 initialState = (0, Nothing)
 
@@ -40,9 +40,6 @@ isAccepting runs = (== length runs) . fst . endRun
   where
   endRun (n, Just 0) = (n+1, Nothing)
   endRun state       = state
-
-
--- MAIN LOGIC
 
 expandBit '?' = ['.', '#']
 expandBit c   = [c]

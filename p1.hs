@@ -7,6 +7,12 @@ main = getContents >>= (print . parts . lines)
 parts x = (part1 x, part2 x)
 
 
+-- CONSTANTS
+
+digits = ["zero","one","two","three","four",
+          "five","six","seven","eight","nine"]
+
+
 -- PART 1
 
 lineToValue =
@@ -18,9 +24,6 @@ part1 = sum . map lineToValue
 
 
 -- PART 2
-
-digits = ["zero","one","two","three","four",
-          "five","six","seven","eight","nine"]
 
 matchDigit (c:_) | isDigit c = Just c
 matchDigit s = (['0'..] !!) <$> findIndex (`isPrefixOf` s) digits

@@ -10,7 +10,7 @@ main = getContents >>= (print . parts . lines)
 parts x = (part1 x, part2 x)
 
 
--- GEOMETRY
+-- CONSTANTS
 
 tileToJunctions = (Map.!) $
   Map.fromList [
